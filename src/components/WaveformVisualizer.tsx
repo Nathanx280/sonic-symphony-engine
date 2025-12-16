@@ -52,37 +52,93 @@ export function WaveformVisualizer({
         const isPlayed = (index / data.length) < progress;
         const isHovered = hoveredPosition !== null && Math.abs(index / data.length - hoveredPosition) < 0.02;
 
-        // Create gradient for each bar - use rgba for proper opacity support
+        // Create gradient for each bar - Canvas doesn't support hex-alpha appended to hsl()/css vars
         const gradient = ctx.createLinearGradient(x, centerY - barHeight / 2, x, centerY + barHeight / 2);
-        
-        // Convert color to rgba format for opacity support
+
+        const resolveCssVar = (input: string) => {
+          const m = input.match(/var\((--[^)\s,]+)(?:,\s*[^)]+)?\)/);
+          if (!m) return null;
+          const raw = getComputedStyle(document.documentElement).getPropertyValue(m[1]).trim();
+          return raw || null;
+        };
+
+        const parseHsl = (input: string): { h: number; s: number; l: number } | null => {
+          const trimmed = input.trim();
+          // Accept formats:
+          // - "25 100% 55%" (shadcn css vars)
+          // - "25, 100%, 55%"
+          // - "hsl(25 100% 55%)" or "hsl(25, 100%, 55%)"
+          const normalized = trimmed
+            .replace(/^hsl\(/, '')
+            .replace(/\)$/, '')
+            .replace(/\s+/g, ' ')
+            .replace(/\s*,\s*/g, ' ');
+
+          const parts = normalized.split(' ').filter(Boolean);
+          if (parts.length < 3) return null;
+
+          const h = Number(parts[0]);
+          const s = Number(parts[1].replace('%', ''));
+          const l = Number(parts[2].replace('%', ''));
+          if ([h, s, l].some((n) => Number.isNaN(n))) return null;
+          return { h, s, l };
+        };
+
+        // Convert HSL -> RGBA (Canvas always accepts rgba())
+        const hslToRgba = (h: number, s: number, l: number, a: number) => {
+          const S = s / 100;
+          const L = l / 100;
+          const C = (1 - Math.abs(2 * L - 1)) * S;
+          const hp = ((h % 360) + 360) % 360 / 60;
+          const X = C * (1 - Math.abs((hp % 2) - 1));
+
+          let r1 = 0,
+            g1 = 0,
+            b1 = 0;
+          if (hp >= 0 && hp < 1) [r1, g1, b1] = [C, X, 0];
+          else if (hp < 2) [r1, g1, b1] = [X, C, 0];
+          else if (hp < 3) [r1, g1, b1] = [0, C, X];
+          else if (hp < 4) [r1, g1, b1] = [0, X, C];
+          else if (hp < 5) [r1, g1, b1] = [X, 0, C];
+          else [r1, g1, b1] = [C, 0, X];
+
+          const m = L - C / 2;
+          const r = Math.round((r1 + m) * 255);
+          const g = Math.round((g1 + m) * 255);
+          const b = Math.round((b1 + m) * 255);
+          return `rgba(${r}, ${g}, ${b}, ${a})`;
+        };
+
         const toRgba = (col: string, alpha: number) => {
-          // If it's already an rgb/rgba, just adjust alpha
+          // rgb/rgba
           if (col.startsWith('rgb')) {
             return col.replace(/rgba?\(([^)]+)\)/, (_, values) => {
-              const parts = values.split(',').slice(0, 3);
-              return `rgba(${parts.join(',')}, ${alpha})`;
+              const parts = values.split(',').slice(0, 3).map((p: string) => p.trim());
+              return `rgba(${parts.join(', ')}, ${alpha})`;
             });
           }
-          // For hex colors
-          if (col.startsWith('#')) {
+
+          // hex
+          if (col.startsWith('#') && col.length >= 7) {
             const hex = col.slice(1);
             const r = parseInt(hex.slice(0, 2), 16);
             const g = parseInt(hex.slice(2, 4), 16);
             const b = parseInt(hex.slice(4, 6), 16);
             return `rgba(${r}, ${g}, ${b}, ${alpha})`;
           }
-          // For hsl colors, convert to hsla
-          if (col.startsWith('hsl')) {
-            return col.replace('hsl', 'hsla').replace(')', `, ${alpha})`);
-          }
-          // Fallback - return as is with opacity
+
+          // hsl(...) and/or css var based colors
+          const varValue = col.includes('var(') ? resolveCssVar(col) : null;
+          const hsl = parseHsl(varValue ?? col);
+          if (hsl) return hslToRgba(hsl.h, hsl.s, hsl.l, alpha);
+
+          // final fallback
           return col;
         };
-        
+
         if (isPlayed) {
-          gradient.addColorStop(0, color);
-          gradient.addColorStop(0.5, color);
+          gradient.addColorStop(0, toRgba(color, 1));
+          gradient.addColorStop(0.5, toRgba(color, 1));
           gradient.addColorStop(1, toRgba(color, 0.5));
         } else {
           gradient.addColorStop(0, toRgba(color, 0.4));
