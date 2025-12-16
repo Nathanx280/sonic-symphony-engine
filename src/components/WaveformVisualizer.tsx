@@ -52,17 +52,42 @@ export function WaveformVisualizer({
         const isPlayed = (index / data.length) < progress;
         const isHovered = hoveredPosition !== null && Math.abs(index / data.length - hoveredPosition) < 0.02;
 
-        // Create gradient for each bar
+        // Create gradient for each bar - use rgba for proper opacity support
         const gradient = ctx.createLinearGradient(x, centerY - barHeight / 2, x, centerY + barHeight / 2);
+        
+        // Convert color to rgba format for opacity support
+        const toRgba = (col: string, alpha: number) => {
+          // If it's already an rgb/rgba, just adjust alpha
+          if (col.startsWith('rgb')) {
+            return col.replace(/rgba?\(([^)]+)\)/, (_, values) => {
+              const parts = values.split(',').slice(0, 3);
+              return `rgba(${parts.join(',')}, ${alpha})`;
+            });
+          }
+          // For hex colors
+          if (col.startsWith('#')) {
+            const hex = col.slice(1);
+            const r = parseInt(hex.slice(0, 2), 16);
+            const g = parseInt(hex.slice(2, 4), 16);
+            const b = parseInt(hex.slice(4, 6), 16);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+          }
+          // For hsl colors, convert to hsla
+          if (col.startsWith('hsl')) {
+            return col.replace('hsl', 'hsla').replace(')', `, ${alpha})`);
+          }
+          // Fallback - return as is with opacity
+          return col;
+        };
         
         if (isPlayed) {
           gradient.addColorStop(0, color);
           gradient.addColorStop(0.5, color);
-          gradient.addColorStop(1, `${color}88`);
+          gradient.addColorStop(1, toRgba(color, 0.5));
         } else {
-          gradient.addColorStop(0, `${color}66`);
-          gradient.addColorStop(0.5, `${color}44`);
-          gradient.addColorStop(1, `${color}22`);
+          gradient.addColorStop(0, toRgba(color, 0.4));
+          gradient.addColorStop(0.5, toRgba(color, 0.25));
+          gradient.addColorStop(1, toRgba(color, 0.15));
         }
 
         ctx.fillStyle = gradient;
