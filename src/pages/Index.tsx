@@ -17,6 +17,7 @@ import { SongAnalysisDisplay } from '@/components/SongAnalysisDisplay';
 import { ProcessingOverlay } from '@/components/ProcessingOverlay';
 import { TransportControls } from '@/components/TransportControls';
 import { WaveformVisualizer } from '@/components/WaveformVisualizer';
+import { MainNav } from '@/components/MainNav';
 import { toast } from 'sonner';
 import { Zap } from 'lucide-react';
 
@@ -225,7 +226,7 @@ export default function Index() {
       {/* Header */}
       <header className="border-b border-border/50 backdrop-blur-xl bg-background/50 sticky top-0 z-40">
         <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col lg:flex-row items-center justify-between gap-4">
             <motion.div 
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
@@ -243,12 +244,7 @@ export default function Index() {
                 </p>
               </div>
             </motion.div>
-
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-muted-foreground font-mono">
-                v2.0 • PROFESSIONAL
-              </span>
-            </div>
+            <MainNav />
           </div>
         </div>
       </header>
